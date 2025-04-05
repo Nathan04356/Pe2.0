@@ -1,8 +1,9 @@
 /* USER CODE BEGIN Header */
 /**
   ******************************************************************************
-  * @file    stm32l0xx_it.h
-  * @brief   This file contains the headers of the interrupt handlers.
+  * @file           : main.h
+  * @brief          : Header for main.c file.
+  *                   This file contains the common defines of the application.
   ******************************************************************************
   * @attention
   *
@@ -18,12 +19,15 @@
 /* USER CODE END Header */
 
 /* Define to prevent recursive inclusion -------------------------------------*/
-#ifndef __STM32L0xx_IT_H
-#define __STM32L0xx_IT_H
+#ifndef __MAIN_H
+#define __MAIN_H
 
 #ifdef __cplusplus
- extern "C" {
+extern "C" {
 #endif
+
+/* Includes ------------------------------------------------------------------*/
+#include "stm32l0xx_hal.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -45,19 +49,33 @@
 
 /* USER CODE END EM */
 
+void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
+
 /* Exported functions prototypes ---------------------------------------------*/
-void NMI_Handler(void);
-void HardFault_Handler(void);
-void SVC_Handler(void);
-void PendSV_Handler(void);
-void SysTick_Handler(void);
-void EXTI4_15_IRQHandler(void);
+void Error_Handler(void);
+
 /* USER CODE BEGIN EFP */
 
 /* USER CODE END EFP */
+
+/* Private defines -----------------------------------------------------------*/
+#define OSC_Pin GPIO_PIN_0
+#define OSC_GPIO_Port GPIOH
+#define CH1_Pin GPIO_PIN_0
+#define CH1_GPIO_Port GPIOA
+#define CH2_Pin GPIO_PIN_1
+#define CH2_GPIO_Port GPIOA
+#define CH3_Pin GPIO_PIN_2
+#define CH3_GPIO_Port GPIOA
+#define STATUS_Pin GPIO_PIN_0
+#define STATUS_GPIO_Port GPIOB
+
+/* USER CODE BEGIN Private defines */
+
+/* USER CODE END Private defines */
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* __STM32L0xx_IT_H */
+#endif /* __MAIN_H */

@@ -81,82 +81,6 @@ void HAL_MspInit(void)
 }
 
 /**
-* @brief ADC MSP Initialization
-* This function configures the hardware resources used in this example
-* @param hadc: ADC handle pointer
-* @retval None
-*/
-void HAL_ADC_MspInit(ADC_HandleTypeDef* hadc)
-{
-  GPIO_InitTypeDef GPIO_InitStruct = {0};
-  if(hadc->Instance==ADC1)
-  {
-  /* USER CODE BEGIN ADC1_MspInit 0 */
-
-  /* USER CODE END ADC1_MspInit 0 */
-    /* Peripheral clock enable */
-    __HAL_RCC_ADC1_CLK_ENABLE();
-
-    __HAL_RCC_GPIOA_CLK_ENABLE();
-    /**ADC GPIO Configuration
-    PA0     ------> ADC_IN0
-    PA1     ------> ADC_IN1
-    PA2     ------> ADC_IN2
-    PA3     ------> ADC_IN3
-    PA4     ------> ADC_IN4
-    PA5     ------> ADC_IN5
-    PA6     ------> ADC_IN6
-    */
-    GPIO_InitStruct.Pin = ADC0_Pin|ADC1_Pin|ADC2_Pin|ADC3_Pin
-                          |ADC4_Pin|ADC5_Pin|LEVEL_Pin;
-    GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /* USER CODE BEGIN ADC1_MspInit 1 */
-
-  /* USER CODE END ADC1_MspInit 1 */
-
-  }
-
-}
-
-/**
-* @brief ADC MSP De-Initialization
-* This function freeze the hardware resources used in this example
-* @param hadc: ADC handle pointer
-* @retval None
-*/
-void HAL_ADC_MspDeInit(ADC_HandleTypeDef* hadc)
-{
-  if(hadc->Instance==ADC1)
-  {
-  /* USER CODE BEGIN ADC1_MspDeInit 0 */
-
-  /* USER CODE END ADC1_MspDeInit 0 */
-    /* Peripheral clock disable */
-    __HAL_RCC_ADC1_CLK_DISABLE();
-
-    /**ADC GPIO Configuration
-    PA0     ------> ADC_IN0
-    PA1     ------> ADC_IN1
-    PA2     ------> ADC_IN2
-    PA3     ------> ADC_IN3
-    PA4     ------> ADC_IN4
-    PA5     ------> ADC_IN5
-    PA6     ------> ADC_IN6
-    */
-    HAL_GPIO_DeInit(GPIOA, ADC0_Pin|ADC1_Pin|ADC2_Pin|ADC3_Pin
-                          |ADC4_Pin|ADC5_Pin|LEVEL_Pin);
-
-  /* USER CODE BEGIN ADC1_MspDeInit 1 */
-
-  /* USER CODE END ADC1_MspDeInit 1 */
-  }
-
-}
-
-/**
 * @brief TIM_Base MSP Initialization
 * This function configures the hardware resources used in this example
 * @param htim_base: TIM_Base handle pointer
@@ -188,25 +112,18 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef* htim)
 
   /* USER CODE END TIM2_MspPostInit 0 */
 
-    __HAL_RCC_GPIOB_CLK_ENABLE();
     __HAL_RCC_GPIOA_CLK_ENABLE();
     /**TIM2 GPIO Configuration
-    PB10     ------> TIM2_CH3
-    PA15     ------> TIM2_CH1
+    PA0     ------> TIM2_CH1
+    PA1     ------> TIM2_CH2
+    PA2     ------> TIM2_CH3
     */
-    GPIO_InitStruct.Pin = CH3_Pin;
+    GPIO_InitStruct.Pin = CH1_Pin|CH2_Pin|CH3_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
     GPIO_InitStruct.Alternate = GPIO_AF2_TIM2;
-    HAL_GPIO_Init(CH3_GPIO_Port, &GPIO_InitStruct);
-
-    GPIO_InitStruct.Pin = CH1_Pin;
-    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-    GPIO_InitStruct.Alternate = GPIO_AF5_TIM2;
-    HAL_GPIO_Init(CH1_GPIO_Port, &GPIO_InitStruct);
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /* USER CODE BEGIN TIM2_MspPostInit 1 */
 
@@ -253,17 +170,17 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart)
     /* Peripheral clock enable */
     __HAL_RCC_USART1_CLK_ENABLE();
 
-    __HAL_RCC_GPIOB_CLK_ENABLE();
+    __HAL_RCC_GPIOA_CLK_ENABLE();
     /**USART1 GPIO Configuration
-    PB6     ------> USART1_TX
-    PB7     ------> USART1_RX
+    PA9     ------> USART1_TX
+    PA10     ------> USART1_RX
     */
-    GPIO_InitStruct.Pin = GPIO_PIN_6|GPIO_PIN_7;
+    GPIO_InitStruct.Pin = GPIO_PIN_9|GPIO_PIN_10;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-    GPIO_InitStruct.Alternate = GPIO_AF0_USART1;
-    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+    GPIO_InitStruct.Alternate = GPIO_AF4_USART1;
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /* USER CODE BEGIN USART1_MspInit 1 */
 
@@ -290,10 +207,10 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* huart)
     __HAL_RCC_USART1_CLK_DISABLE();
 
     /**USART1 GPIO Configuration
-    PB6     ------> USART1_TX
-    PB7     ------> USART1_RX
+    PA9     ------> USART1_TX
+    PA10     ------> USART1_RX
     */
-    HAL_GPIO_DeInit(GPIOB, GPIO_PIN_6|GPIO_PIN_7);
+    HAL_GPIO_DeInit(GPIOA, GPIO_PIN_9|GPIO_PIN_10);
 
   /* USER CODE BEGIN USART1_MspDeInit 1 */
 
