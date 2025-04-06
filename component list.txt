@@ -1,0 +1,59 @@
+STM32L053C8T6 check 
+NCV4274C	spanningsregaal  3.3 v check 3.3
+tb6612fng x 3   H-brug check
+SHarp GP2Y0A21YK0F x7	IR sensor check  
+BQ24092DGQR check
+BQ29700DSER check
+KW11-3Z-B-1 x 10 botssesnor check 
+micro N20 gear motor niet meer nodig
+Phoenix contact x2 x10 check
+Phoenix contact x3 x14 check genoeg?
+
+STLINK-V3MINIE check
+
+led check
+
+SQM120N06-3M5L_GE3 check 
+BSS316N check
+MTS-103-A2 check
+TB6612FNG check
+TPS61023DRLR check
+NCV4274C check
+AU-24.000MBE-T check
+CSD16406Q3 check
+BQ24092DGQR check
+BQ29700DSER check
+esd_ic check
+usb-c check
+
+100nF check
+
+22µF check
+10µF check
+
+100nF check
+100n check
+1µF check
+
+
+
+
+3k3 check
+6k8 check
+732k check
+100k check
+1k8 check
+5k6 check
+
+spoel 1µ check
+
+1k5 check
+2k2 check
+330R check
+1k check
+2k check
+10k check
+4k7 check 
+5k1 check
+39R check
+
