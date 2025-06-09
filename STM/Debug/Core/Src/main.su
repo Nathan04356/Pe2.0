@@ -1,0 +1,14 @@
+../Core/Src/main.c:85:5:_write	32	static
+../Core/Src/main.c:94:6:HAL_TIM_PeriodElapsedCallback	16	static
+../Core/Src/main.c:110:6:HAL_GPIO_EXTI_Callback	16	static
+../Core/Src/main.c:114:6:readAdc	32	static
+../Core/Src/main.c:138:9:driveDock	24	static
+../Core/Src/main.c:207:6:driveNormal	16	static
+../Core/Src/main.c:268:5:main	40	static
+../Core/Src/main.c:340:6:SystemClock_Config	128	static
+../Core/Src/main.c:387:13:MX_ADC_Init	16	static
+../Core/Src/main.c:459:13:MX_TIM2_Init	48	static
+../Core/Src/main.c:522:13:MX_TIM6_Init	16	static
+../Core/Src/main.c:560:13:MX_USART1_UART_Init	8	static
+../Core/Src/main.c:595:13:MX_GPIO_Init	48	static
+../Core/Src/main.c:672:6:Error_Handler	8	static,ignoring_inline_asm

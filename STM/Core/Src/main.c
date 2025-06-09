@@ -21,7 +21,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdio.h>
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -36,18 +37,31 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
+#define VOORUIT (GPIOB->BSRR = 0xF800B000);
+#define ACHTERUIT (GPIOB->BSRR = 0xF8006800);
+#define LINKS (GPIOB->BSRR = 0xF800A800);
+#define RECHTS (GPIOB->BSRR = 0xF8007000);
+#define UIT (GPIOB->BSRR = 0xF8000000);
+#define NORMAL_SPEED 255;
+#define DOCK_SPEED 125;
+#define IR_SENSOR_COUNT 3
+#define IR_SENSOR_DISTANCE 1500
+#define IR_MID_SENSOR_DISTANCE 2200
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc;
 
 TIM_HandleTypeDef htim2;
+TIM_HandleTypeDef htim6;
 
 UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
-
+uint8_t sample = 0;
+uint8_t data = 0;
+uint8_t data_ready = 0;
+uint8_t data_beacon = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -56,13 +70,195 @@ static void MX_GPIO_Init(void);
 static void MX_ADC_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_USART1_UART_Init(void);
+static void MX_TIM6_Init(void);
 /* USER CODE BEGIN PFP */
-
+int _write(int, char *, int);
+void HAL_TIM_PeriodElapsedCallback (TIM_HandleTypeDef *);
+void HAL_GPIO_EXTI_Callback(uint16_t);
+void readAdc(uint32_t []);
+uint8_t driveDock(uint8_t, uint32_t [], uint8_t *, uint8_t *);
+void driveNormal(uint32_t []);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+int _write(int file, char *ptr, int len) {
+	for(int i = 0; i < len; i++){
+		if(ptr[i]=='\n'){
+			HAL_UART_Transmit(&huart1, (uint8_t*)"\r", 1, HAL_MAX_DELAY);
+		}
+		HAL_UART_Transmit(&huart1, (uint8_t*)&ptr[i], 1, HAL_MAX_DELAY);
+	}
+    return len;
+}
+void HAL_TIM_PeriodElapsedCallback (TIM_HandleTypeDef *htim)
+{
+	//HAL_GPIO_TogglePin(PIN_GPIO_Port, PIN_Pin);
+	sample = !HAL_GPIO_ReadPin(IR_GPIO_Port, IR_Pin); //MSB eerst
+	data = (data << 1) | sample; //actief lage pin => bit toggelen
+	HAL_TIM_Base_Stop_IT(&htim6);
+	__HAL_TIM_SET_COUNTER(&htim6, 0);
+	if ((data == 0xa4) || (data == 0xa8) || (data == 0xac))
+	{
+		data_ready = data;
+	}
+	if (data == 0xa1)
+	{
+		data_beacon = data;
+	}
+}
+void HAL_GPIO_EXTI_Callback(uint16_t IR_EXTI_IRQn)
+{
+	HAL_TIM_Base_Start_IT(&htim6);
+}
+void readAdc(uint32_t result[])
+{
+	ADC_ChannelConfTypeDef sConfig = {0};
 
+	sConfig.Channel = ADC_CHANNEL_3;
+	HAL_ADC_ConfigChannel(&hadc, &sConfig);
+	HAL_ADC_Start(&hadc);
+	HAL_ADC_PollForConversion(&hadc, 1);
+	result[1] = HAL_ADC_GetValue(&hadc);
+
+	sConfig.Channel = ADC_CHANNEL_2;
+	HAL_ADC_ConfigChannel(&hadc, &sConfig);
+	HAL_ADC_Start(&hadc);
+	HAL_ADC_PollForConversion(&hadc, 1);
+	result[2] = HAL_ADC_GetValue(&hadc);
+
+	sConfig.Channel = ADC_CHANNEL_1;
+	HAL_ADC_ConfigChannel(&hadc, &sConfig);
+	HAL_ADC_Start(&hadc);
+	HAL_ADC_PollForConversion(&hadc, 1);
+	result[0] = HAL_ADC_GetValue(&hadc);
+
+	printf("RECHTS: %ld, MIDDEN: %ld, LINKS: %ld\n", result[0], result[2], result[1]);
+}
+uint8_t driveDock(uint8_t state_dock, uint32_t adc_values[], uint8_t *drive_dock, uint8_t *detect_dock)
+{
+	switch (state_dock)
+	{
+	case 0:
+		readAdc(adc_values);
+		driveNormal(adc_values);
+
+		if (data_ready == 0xac)
+		{
+			(*detect_dock)++;
+		}
+
+		if (*detect_dock == 100) //150 ms delay
+		{
+			state_dock = 1;
+			HAL_GPIO_WritePin(STOF_GPIO_Port, STOF_Pin, 0);
+		}
+		break;
+	case 1:
+		if (data_ready == 0xa4)
+		{
+			VOORUIT;
+			htim2.Instance->CCR1 = DOCK_SPEED; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR3 = 0; //Duty Cycle op 50% => led 38kHz
+		}
+		else if (data_ready == 0xa8)
+		{
+			VOORUIT;
+			htim2.Instance->CCR1 = 0; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR3 = DOCK_SPEED; //Duty Cycle op 50% => led 38kHz
+		}
+		else if (data_ready == 0xac)
+		{
+			VOORUIT;
+			htim2.Instance->CCR1 = DOCK_SPEED; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR3 = DOCK_SPEED; //Duty Cycle op 50% => led 38kHz
+		}
+
+		readAdc(adc_values);
+		if (adc_values[2] > IR_MID_SENSOR_DISTANCE)
+		{
+			state_dock = 2;
+		}
+		break;
+	case 2:
+		UIT;
+		data_ready = 0;
+		data_beacon = 0;
+		if (!HAL_GPIO_ReadPin(DRUK2_GPIO_Port, DRUK2_Pin))
+		{
+			while (!HAL_GPIO_ReadPin(DRUK2_GPIO_Port, DRUK2_Pin));
+			HAL_GPIO_WritePin(STOF_GPIO_Port, STOF_Pin, 1);
+			ACHTERUIT;
+			htim2.Instance->CCR1 = NORMAL_SPEED; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR3 = NORMAL_SPEED; //Duty Cycle op 50% => led 38kHz
+			HAL_Delay(500);
+			RECHTS;
+			htim2.Instance->CCR1 = NORMAL_SPEED; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR3 = NORMAL_SPEED; //Duty Cycle op 50% => led 38kHz
+			HAL_Delay(2500);
+			*drive_dock = 0;
+			*detect_dock = 0;
+			state_dock = 0;
+		}
+		break;
+	}
+	return state_dock;
+}
+void driveNormal(uint32_t adc_values[])
+{
+	HAL_GPIO_WritePin(STOF_GPIO_Port, STOF_Pin, 1);
+	htim2.Instance->CCR1 = NORMAL_SPEED; //Duty Cycle op 50% => led 38kHz
+	htim2.Instance->CCR3 = NORMAL_SPEED; //Duty Cycle op 50% => led 38kHz
+	if (adc_values[0] > IR_SENSOR_DISTANCE && adc_values[1] < IR_SENSOR_DISTANCE)
+	{
+		LINKS;
+		//VOORUIT;
+		//htim2.Instance->CCR1 = NORMAL_SPEED; //Duty Cycle op 50% => led 38kHz
+		//htim2.Instance->CCR3 = 0; //Duty Cycle op 50% => led 38kHz
+	}
+	else if (adc_values[1] > IR_SENSOR_DISTANCE && adc_values[0] < IR_SENSOR_DISTANCE)
+	{
+		RECHTS;
+		//VOORUIT;
+		//htim2.Instance->CCR1 = 0; //Duty Cycle op 50% => led 38kHz
+		//htim2.Instance->CCR3 = NORMAL_SPEED; //Duty Cycle op 50% => led 38kHz
+	}
+	else if (adc_values[0] > IR_MID_SENSOR_DISTANCE && adc_values[1] > IR_MID_SENSOR_DISTANCE)
+	{
+		ACHTERUIT;
+		HAL_Delay(500);
+		if (adc_values[0] > adc_values[1])
+		{
+			LINKS;
+			HAL_Delay(2500);
+		}
+		else
+		{	RECHTS;
+			HAL_Delay(2500);
+		}
+	}
+	else if (adc_values[2] > IR_MID_SENSOR_DISTANCE)
+	{
+		ACHTERUIT;
+		HAL_Delay(500);
+		if (adc_values[0] > adc_values[1])
+		{
+			LINKS;
+			HAL_Delay(2500);
+		}
+		else
+		{
+			RECHTS;
+			HAL_Delay(2500);
+		}
+	}
+	else
+	{
+		VOORUIT;
+		//htim2.Instance->CCR1 = NORMAL_SPEED; //Duty Cycle op 50% => led 38kHz
+		//htim2.Instance->CCR3 = NORMAL_SPEED; //Duty Cycle op 50% => led 38kHz
+	}
+}
 /* USER CODE END 0 */
 
 /**
@@ -73,7 +269,10 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
+	uint32_t adc_values[IR_SENSOR_COUNT];
+	uint8_t drive_dock = 0;
+	uint8_t state_dock = 0;
+	uint8_t detect_dock = 0;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -97,8 +296,14 @@ int main(void)
   MX_ADC_Init();
   MX_TIM2_Init();
   MX_USART1_UART_Init();
+  MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
-
+  HAL_GPIO_WritePin(IR1_GPIO_Port, IR1_Pin, 1);
+  HAL_GPIO_WritePin(IR2_GPIO_Port, IR2_Pin, 1);
+  HAL_GPIO_WritePin(IR3_GPIO_Port, IR3_Pin, 1);
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3);
+  HAL_Delay(50); //sensors moeten opstarten
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -108,6 +313,22 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	  switch (drive_dock)
+	  {
+	  case 0:
+		  if (!HAL_GPIO_ReadPin(DRUK2_GPIO_Port, DRUK2_Pin))
+		  {
+			  while (!HAL_GPIO_ReadPin(DRUK2_GPIO_Port, DRUK2_Pin));
+			  drive_dock ^= 1;
+		  }
+		  readAdc(adc_values);
+		  driveNormal(adc_values);
+		  break;
+	  case 1:
+		  printf("data: %x, %x\n", data_ready, data_beacon);
+		  state_dock = driveDock(state_dock, adc_values, &drive_dock, &detect_dock);
+		  break;
+	  }
   }
   /* USER CODE END 3 */
 }
@@ -186,7 +407,7 @@ static void MX_ADC_Init(void)
   hadc.Init.ScanConvMode = ADC_SCAN_DIRECTION_FORWARD;
   hadc.Init.DataAlign = ADC_DATAALIGN_RIGHT;
   hadc.Init.ContinuousConvMode = DISABLE;
-  hadc.Init.DiscontinuousConvMode = DISABLE;
+  hadc.Init.DiscontinuousConvMode = ENABLE;
   hadc.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
   hadc.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc.Init.DMAContinuousRequests = DISABLE;
@@ -202,16 +423,8 @@ static void MX_ADC_Init(void)
 
   /** Configure for the selected ADC regular channel to be converted.
   */
-  sConfig.Channel = ADC_CHANNEL_0;
-  sConfig.Rank = ADC_RANK_CHANNEL_NUMBER;
-  if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Configure for the selected ADC regular channel to be converted.
-  */
   sConfig.Channel = ADC_CHANNEL_1;
+  sConfig.Rank = ADC_RANK_CHANNEL_NUMBER;
   if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -228,30 +441,6 @@ static void MX_ADC_Init(void)
   /** Configure for the selected ADC regular channel to be converted.
   */
   sConfig.Channel = ADC_CHANNEL_3;
-  if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Configure for the selected ADC regular channel to be converted.
-  */
-  sConfig.Channel = ADC_CHANNEL_4;
-  if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Configure for the selected ADC regular channel to be converted.
-  */
-  sConfig.Channel = ADC_CHANNEL_5;
-  if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Configure for the selected ADC regular channel to be converted.
-  */
-  sConfig.Channel = ADC_CHANNEL_6;
   if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -282,11 +471,11 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 0;
+  htim2.Init.Prescaler = 93;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 65535;
+  htim2.Init.Period = 255;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
   {
     Error_Handler();
@@ -322,6 +511,44 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 2 */
   HAL_TIM_MspPostInit(&htim2);
+
+}
+
+/**
+  * @brief TIM6 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM6_Init(void)
+{
+
+  /* USER CODE BEGIN TIM6_Init 0 */
+
+  /* USER CODE END TIM6_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM6_Init 1 */
+
+  /* USER CODE END TIM6_Init 1 */
+  htim6.Instance = TIM6;
+  htim6.Init.Prescaler = 192;
+  htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim6.Init.Period = 255;
+  htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim6, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM6_Init 2 */
+
+  /* USER CODE END TIM6_Init 2 */
 
 }
 
@@ -385,7 +612,7 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, BIN2_Pin|BIN1_Pin|STBY_Pin|AIN2_Pin
-                          |AIN1_Pin|STOF_Pin, GPIO_PIN_RESET);
+                          |AIN1_Pin|PIN_Pin|STOF_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : STATUS_Pin */
   GPIO_InitStruct.Pin = STATUS_Pin;
@@ -394,40 +621,35 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(STATUS_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : IR1_Pin IR0_Pin */
-  GPIO_InitStruct.Pin = IR1_Pin|IR0_Pin;
+  /*Configure GPIO pins : IR1_Pin IR2_Pin IR3_Pin IR4_Pin
+                           IR5_Pin IR0_Pin */
+  GPIO_InitStruct.Pin = IR1_Pin|IR2_Pin|IR3_Pin|IR4_Pin
+                          |IR5_Pin|IR0_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pins : DRUK5_Pin DRUK4_Pin DRUK3_Pin DRUK2_Pin
-                           DRUK1_Pin DRUK0_Pin */
+                           DRUK1_Pin */
   GPIO_InitStruct.Pin = DRUK5_Pin|DRUK4_Pin|DRUK3_Pin|DRUK2_Pin
-                          |DRUK1_Pin|DRUK0_Pin;
+                          |DRUK1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pins : BIN2_Pin BIN1_Pin STBY_Pin AIN2_Pin
-                           AIN1_Pin STOF_Pin */
+                           AIN1_Pin PIN_Pin STOF_Pin */
   GPIO_InitStruct.Pin = BIN2_Pin|BIN1_Pin|STBY_Pin|AIN2_Pin
-                          |AIN1_Pin|STOF_Pin;
+                          |AIN1_Pin|PIN_Pin|STOF_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : IR2_Pin IR3_Pin IR4_Pin IR5_Pin */
-  GPIO_InitStruct.Pin = IR2_Pin|IR3_Pin|IR4_Pin|IR5_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
   /*Configure GPIO pin : IR_Pin */
   GPIO_InitStruct.Pin = IR_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(IR_GPIO_Port, &GPIO_InitStruct);
 

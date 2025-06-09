@@ -21,7 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdio.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -36,7 +36,7 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
+#define DUTY_VAL 14
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -51,15 +51,206 @@ UART_HandleTypeDef huart1;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_TIM2_Init(void);
 static void MX_USART1_UART_Init(void);
+static void MX_TIM2_Init(void);
 /* USER CODE BEGIN PFP */
-
+int _write(int, char *, int);
+void stuurDataIrSolo (uint8_t);
+void stuurDataIrDuo (uint8_t, uint8_t);
+void stuurDataIrAll (uint8_t, uint8_t, uint8_t);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+int _write(int file, char *ptr, int len) {
+	for(int i = 0; i < len; i++){
+		if(ptr[i]=='\n'){
+			HAL_UART_Transmit(&huart1, (uint8_t*)"\r", 1, HAL_MAX_DELAY);
+		}
+		HAL_UART_Transmit(&huart1, (uint8_t*)&ptr[i], 1, HAL_MAX_DELAY);
+	}
+    return len;
+}
+void stuurDataIrSolo (uint8_t data) //MSB eerst
+{
+	uint8_t bit;
+	for (uint8_t i = 0; i < 8; i++)
+	{
+		bit = data & 128;
+		data = data <<  1;
+		if (bit == 128)
+		{
+			htim2.Instance->CCR2 = DUTY_VAL; //Duty Cycle op 50% => led 38kHz
+			HAL_Delay(2); //3ms wachten
+			htim2.Instance->CCR2 = 0; //Duty Cycle op 0% => led uit
+			HAL_Delay(0); //1ms wachten
+		}
+		else
+		{
+			htim2.Instance->CCR2 = DUTY_VAL; //Duty Cycle op 50% => led 38kHz
+			HAL_Delay(0); //3ms wachten
+			htim2.Instance->CCR2 = 0; //Duty Cycle op 0% => led uit
+			HAL_Delay(2); //1ms wachten
+		}
+	}
+}
+void stuurDataIrDuo (uint8_t data_ch1, uint8_t data_ch2) //MSB eerst
+{
+	uint8_t bit_ch1, bit_ch2;
+	for (uint8_t i = 0; i < 8; i++)
+	{
+		bit_ch1 = data_ch1 & 128;
+		bit_ch2 = data_ch2 & 128;
+		data_ch1 = data_ch1 <<  1;
+		data_ch2 = data_ch2 <<  1;
+		if (bit_ch1 == 128 && bit_ch2 == 128)
+		{
+			htim2.Instance->CCR1 = DUTY_VAL; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR3 = DUTY_VAL; //Duty Cycle op 50% => led 38kHz
+			HAL_Delay(2); //3ms wachten
+			htim2.Instance->CCR1 = 0; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR3 = 0; //Duty Cycle op 50% => led 38kHz
+			HAL_Delay(0); //1ms wachten
+		}
+		else if (bit_ch1 == 128 && bit_ch2 == 0)
+		{
+			htim2.Instance->CCR1 = DUTY_VAL; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR3 = DUTY_VAL; //Duty Cycle op 50% => led 38kHz
+			HAL_Delay(0); //1ms wachten
+			htim2.Instance->CCR3 = 0; //Duty Cycle op 50% => led 38kHz
+			HAL_Delay(1); //2ms wachten
+			htim2.Instance->CCR1 = 0; //Duty Cycle op 50% => led 38kHz
+			HAL_Delay(0); //1ms wachten
+		}
+		else if (bit_ch1 == 0 && bit_ch2 == 128)
+		{
+			htim2.Instance->CCR1 = DUTY_VAL; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR3 = DUTY_VAL; //Duty Cycle op 50% => led 38kHz
+			HAL_Delay(0); //1ms wachten
+			htim2.Instance->CCR1 = 0; //Duty Cycle op 50% => led 38kHz
+			HAL_Delay(1); //2ms wachten
+			htim2.Instance->CCR3 = 0; //Duty Cycle op 50% => led 38kHz
+			HAL_Delay(0); //1ms wachten
+		}
+		else
+		{
+			htim2.Instance->CCR1 = DUTY_VAL; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR3 = DUTY_VAL; //Duty Cycle op 50% => led 38kHz
+			HAL_Delay(0); //3ms wachten
+			htim2.Instance->CCR1 = 0; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR3 = 0; //Duty Cycle op 50% => led 38kHz
+			HAL_Delay(2); //1ms wachten
+		}
+	}
+}
+void stuurDataIrAll (uint8_t data_ch1, uint8_t data_ch2, uint8_t data_ch3)
+{
+	uint8_t bit_ch1, bit_ch2, bit_ch3;
+	for (uint8_t i = 0; i < 8; i++)
+	{
+		bit_ch1 = data_ch1 & 128;
+		bit_ch2 = data_ch2 & 128;
+		bit_ch3 = data_ch3 & 128;
+		data_ch1 = data_ch1 <<  1;
+		data_ch2 = data_ch2 <<  1;
+		data_ch3 = data_ch3 <<  1;
+		if (bit_ch1 == 128 && bit_ch2 == 128 && bit_ch3 == 128)
+		{
+			htim2.Instance->CCR3 = DUTY_VAL; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR4 = DUTY_VAL; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR1 = DUTY_VAL; //Duty Cycle op 50% => led 38kHz
+			HAL_Delay(2); //3ms wachten
+			htim2.Instance->CCR3 = 0; //Duty Cycle op 0% => led uit
+			htim2.Instance->CCR4 = 0; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR1 = 0; //Duty Cycle op 50% => led 38kHz
+			HAL_Delay(0); //1ms wachten
+		}
+		else if (bit_ch1 == 0 && bit_ch2 == 128 && bit_ch3 == 128)
+		{
+			htim2.Instance->CCR3 = DUTY_VAL; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR4 = DUTY_VAL; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR1 = DUTY_VAL; //Duty Cycle op 50% => led 38kHz
+			HAL_Delay(0); //3ms wachten
+			htim2.Instance->CCR3 = 0; //Duty Cycle op 50% => led 38kHz
+			HAL_Delay(1); //1ms wachten
+			htim2.Instance->CCR3 = 0; //Duty Cycle op 0% => led uit
+			htim2.Instance->CCR1 = 0; //Duty Cycle op 50% => led 38kHz
+			HAL_Delay(0); //1ms wachten
+		}
+		else if (bit_ch1 == 128 && bit_ch2 == 0 && bit_ch3 == 128)
+		{
+			htim2.Instance->CCR3 = DUTY_VAL; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR4 = DUTY_VAL; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR1 = DUTY_VAL; //Duty Cycle op 50% => led 38kHz
+			HAL_Delay(0); //3ms wachten
+			htim2.Instance->CCR4 = 0; //Duty Cycle op 50% => led 38kHz
+			HAL_Delay(1); //1ms wachten
+			htim2.Instance->CCR3 = 0; //Duty Cycle op 0% => led uit
+			htim2.Instance->CCR1 = 0; //Duty Cycle op 50% => led 38kHz
+			HAL_Delay(0); //1ms wachten
+		}
+		else if (bit_ch1 == 128 && bit_ch2 == 128 && bit_ch3 == 0)
+		{
+			htim2.Instance->CCR3 = DUTY_VAL; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR4 = DUTY_VAL; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR1 = DUTY_VAL; //Duty Cycle op 50% => led 38kHz
+			HAL_Delay(0); //3ms wachten
+			htim2.Instance->CCR1 = 0; //Duty Cycle op 50% => led 38kHz
+			HAL_Delay(1); //1ms wachten
+			htim2.Instance->CCR3 = 0; //Duty Cycle op 0% => led uit
+			htim2.Instance->CCR4 = 0; //Duty Cycle op 50% => led 38kHz
+			HAL_Delay(0); //1ms wachten
+		}
+		else if (bit_ch1 == 0 && bit_ch2 == 0 && bit_ch3 == 128)
+		{
+			htim2.Instance->CCR3 = DUTY_VAL; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR4 = DUTY_VAL; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR1 = DUTY_VAL; //Duty Cycle op 50% => led 38kHz
+			HAL_Delay(0); //3ms wachten
+			htim2.Instance->CCR3 = 0; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR4 = 0; //Duty Cycle op 50% => led 38kHz
+			HAL_Delay(1); //1ms wachten
+			htim2.Instance->CCR1 = 0; //Duty Cycle op 0% => led uit
+			HAL_Delay(0); //1ms wachten
+		}
+		else if (bit_ch1 == 128 && bit_ch2 == 0 && bit_ch3 == 0)
+		{
+			htim2.Instance->CCR3 = DUTY_VAL; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR4 = DUTY_VAL; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR1 = DUTY_VAL; //Duty Cycle op 50% => led 38kHz
+			HAL_Delay(0); //3ms wachten
+			htim2.Instance->CCR4 = 0; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR1 = 0; //Duty Cycle op 50% => led 38kHz
+			HAL_Delay(1); //1ms wachten
+			htim2.Instance->CCR3 = 0; //Duty Cycle op 0% => led uit
+			HAL_Delay(0); //1ms wachten
+		}
 
+		else if (bit_ch1 == 0 && bit_ch2 == 128 && bit_ch3 == 0)
+		{
+			htim2.Instance->CCR3 = DUTY_VAL; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR4 = DUTY_VAL; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR1 = DUTY_VAL; //Duty Cycle op 50% => led 38kHz
+			HAL_Delay(0); //3ms wachten
+			htim2.Instance->CCR3 = 0; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR1 = 0; //Duty Cycle op 50% => led 38kHz
+			HAL_Delay(1); //1ms wachten
+			htim2.Instance->CCR4 = 0; //Duty Cycle op 0% => led uit
+			HAL_Delay(0); //1ms wachten
+		}
+		else
+		{
+			htim2.Instance->CCR3 = DUTY_VAL; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR4 = DUTY_VAL; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR1 = DUTY_VAL; //Duty Cycle op 50% => led 38kHz
+			HAL_Delay(0); //3ms wachten
+			htim2.Instance->CCR3 = 0; //Duty Cycle op 0% => led uit
+			htim2.Instance->CCR4 = 0; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR1 = 0; //Duty Cycle op 50% => led 38kHz
+			HAL_Delay(2); //1ms wachten
+		}
+	}
+}
 /* USER CODE END 0 */
 
 /**
@@ -91,10 +282,13 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_TIM2_Init();
   MX_USART1_UART_Init();
+  MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-
+  HAL_GPIO_WritePin(STATUS_GPIO_Port, STATUS_Pin, 1);
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -104,6 +298,9 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	  stuurDataIrSolo(0xa1);
+	  stuurDataIrDuo(0xa4, 0xa8);
+	  //stuurDataIrAll(0x0, 0x0, 0x0);
   }
   /* USER CODE END 3 */
 }
@@ -174,11 +371,11 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 0;
+  htim2.Init.Prescaler = 23;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 65535;
+  htim2.Init.Period = 25;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
   {
     Error_Handler();
@@ -200,7 +397,7 @@ static void MX_TIM2_Init(void)
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
   sConfigOC.Pulse = 0;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_LOW;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
   if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
   {
@@ -269,8 +466,8 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOH_CLK_ENABLE();
-  __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOA_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(STATUS_GPIO_Port, STATUS_Pin, GPIO_PIN_RESET);

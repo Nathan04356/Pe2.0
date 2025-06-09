@@ -61,14 +61,18 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define OSC_Pin GPIO_PIN_0
 #define OSC_GPIO_Port GPIOH
-#define CH1_Pin GPIO_PIN_0
-#define CH1_GPIO_Port GPIOA
-#define CH2_Pin GPIO_PIN_1
-#define CH2_GPIO_Port GPIOA
-#define CH3_Pin GPIO_PIN_2
-#define CH3_GPIO_Port GPIOA
 #define STATUS_Pin GPIO_PIN_0
 #define STATUS_GPIO_Port GPIOB
+#define CH3_Pin GPIO_PIN_10
+#define CH3_GPIO_Port GPIOB
+#define CH1_Pin GPIO_PIN_15
+#define CH1_GPIO_Port GPIOA
+#define CH2_Pin GPIO_PIN_3
+#define CH2_GPIO_Port GPIOB
+#define TX_Pin GPIO_PIN_6
+#define TX_GPIO_Port GPIOB
+#define RX_Pin GPIO_PIN_7
+#define RX_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 
