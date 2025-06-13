@@ -22,7 +22,6 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
-#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -42,11 +41,14 @@
 #define LINKS (GPIOB->BSRR = 0xF800A800);
 #define RECHTS (GPIOB->BSRR = 0xF8007000);
 #define UIT (GPIOB->BSRR = 0xF8000000);
-#define NORMAL_SPEED 255;
-#define DOCK_SPEED 125;
+#define NORMAL_SPEED 255
+#define DOCK_SPEED 145
 #define IR_SENSOR_COUNT 3
 #define IR_SENSOR_DISTANCE 1500
 #define IR_MID_SENSOR_DISTANCE 2200
+#define ACHTERUIT_DELAY 500
+#define DRAAI_DELAY 1500
+#define LANG_DRAAI_DELAY 3000
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -115,23 +117,23 @@ void readAdc(uint32_t result[])
 {
 	ADC_ChannelConfTypeDef sConfig = {0};
 
-	sConfig.Channel = ADC_CHANNEL_3;
+	sConfig.Channel = ADC_CHANNEL_0;
 	HAL_ADC_ConfigChannel(&hadc, &sConfig);
 	HAL_ADC_Start(&hadc);
 	HAL_ADC_PollForConversion(&hadc, 1);
-	result[1] = HAL_ADC_GetValue(&hadc);
-
-	sConfig.Channel = ADC_CHANNEL_2;
-	HAL_ADC_ConfigChannel(&hadc, &sConfig);
-	HAL_ADC_Start(&hadc);
-	HAL_ADC_PollForConversion(&hadc, 1);
-	result[2] = HAL_ADC_GetValue(&hadc);
+	result[0] = HAL_ADC_GetValue(&hadc);
 
 	sConfig.Channel = ADC_CHANNEL_1;
 	HAL_ADC_ConfigChannel(&hadc, &sConfig);
 	HAL_ADC_Start(&hadc);
 	HAL_ADC_PollForConversion(&hadc, 1);
-	result[0] = HAL_ADC_GetValue(&hadc);
+	result[2] = HAL_ADC_GetValue(&hadc);
+
+	sConfig.Channel = ADC_CHANNEL_2;
+	HAL_ADC_ConfigChannel(&hadc, &sConfig);
+	HAL_ADC_Start(&hadc);
+	HAL_ADC_PollForConversion(&hadc, 1);
+	result[1] = HAL_ADC_GetValue(&hadc);
 
 	printf("RECHTS: %ld, MIDDEN: %ld, LINKS: %ld\n", result[0], result[2], result[1]);
 }
@@ -140,6 +142,8 @@ uint8_t driveDock(uint8_t state_dock, uint32_t adc_values[], uint8_t *drive_dock
 	switch (state_dock)
 	{
 	case 0:
+		htim2.Instance->CCR1 = DOCK_SPEED; //Duty Cycle op 50% => led 38kHz
+		htim2.Instance->CCR3 = DOCK_SPEED; //Duty Cycle op 50% => led 38kHz
 		readAdc(adc_values);
 		driveNormal(adc_values);
 
@@ -148,24 +152,23 @@ uint8_t driveDock(uint8_t state_dock, uint32_t adc_values[], uint8_t *drive_dock
 			(*detect_dock)++;
 		}
 
-		if (*detect_dock == 100) //150 ms delay
+		if (*detect_dock == 1) //150 ms delay
 		{
 			state_dock = 1;
-			HAL_GPIO_WritePin(STOF_GPIO_Port, STOF_Pin, 0);
 		}
 		break;
 	case 1:
 		if (data_ready == 0xa4)
 		{
 			VOORUIT;
-			htim2.Instance->CCR1 = DOCK_SPEED; //Duty Cycle op 50% => led 38kHz
-			htim2.Instance->CCR3 = 0; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR1 = 0; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR3 = DOCK_SPEED; //Duty Cycle op 50% => led 38kHz
 		}
 		else if (data_ready == 0xa8)
 		{
 			VOORUIT;
-			htim2.Instance->CCR1 = 0; //Duty Cycle op 50% => led 38kHz
-			htim2.Instance->CCR3 = DOCK_SPEED; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR1 = DOCK_SPEED; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR3 = 0; //Duty Cycle op 50% => led 38kHz
 		}
 		else if (data_ready == 0xac)
 		{
@@ -175,7 +178,7 @@ uint8_t driveDock(uint8_t state_dock, uint32_t adc_values[], uint8_t *drive_dock
 		}
 
 		readAdc(adc_values);
-		if (adc_values[2] > IR_MID_SENSOR_DISTANCE)
+		if (adc_values[2] > IR_SENSOR_DISTANCE)
 		{
 			state_dock = 2;
 		}
@@ -184,18 +187,15 @@ uint8_t driveDock(uint8_t state_dock, uint32_t adc_values[], uint8_t *drive_dock
 		UIT;
 		data_ready = 0;
 		data_beacon = 0;
-		if (!HAL_GPIO_ReadPin(DRUK2_GPIO_Port, DRUK2_Pin))
+		if (!HAL_GPIO_ReadPin(DRUK0_GPIO_Port, DRUK0_Pin))
 		{
-			while (!HAL_GPIO_ReadPin(DRUK2_GPIO_Port, DRUK2_Pin));
-			HAL_GPIO_WritePin(STOF_GPIO_Port, STOF_Pin, 1);
+			while (!HAL_GPIO_ReadPin(DRUK0_GPIO_Port, DRUK0_Pin));
 			ACHTERUIT;
-			htim2.Instance->CCR1 = NORMAL_SPEED; //Duty Cycle op 50% => led 38kHz
-			htim2.Instance->CCR3 = NORMAL_SPEED; //Duty Cycle op 50% => led 38kHz
-			HAL_Delay(500);
+			htim2.Instance->CCR1 = DOCK_SPEED; //Duty Cycle op 50% => led 38kHz
+			htim2.Instance->CCR3 = DOCK_SPEED; //Duty Cycle op 50% => led 38kHz
+			HAL_Delay(ACHTERUIT_DELAY);
 			RECHTS;
-			htim2.Instance->CCR1 = NORMAL_SPEED; //Duty Cycle op 50% => led 38kHz
-			htim2.Instance->CCR3 = NORMAL_SPEED; //Duty Cycle op 50% => led 38kHz
-			HAL_Delay(2500);
+			HAL_Delay(DRAAI_DELAY);
 			*drive_dock = 0;
 			*detect_dock = 0;
 			state_dock = 0;
@@ -206,9 +206,28 @@ uint8_t driveDock(uint8_t state_dock, uint32_t adc_values[], uint8_t *drive_dock
 }
 void driveNormal(uint32_t adc_values[])
 {
-	HAL_GPIO_WritePin(STOF_GPIO_Port, STOF_Pin, 1);
-	htim2.Instance->CCR1 = NORMAL_SPEED; //Duty Cycle op 50% => led 38kHz
-	htim2.Instance->CCR3 = NORMAL_SPEED; //Duty Cycle op 50% => led 38kHz
+	if (HAL_GPIO_ReadPin(DRUK4_GPIO_Port, DRUK4_Pin) == 0) //bumper links
+	{
+		ACHTERUIT;
+		HAL_Delay(ACHTERUIT_DELAY);
+		LINKS;
+		HAL_Delay(DRAAI_DELAY);
+	}
+	else if (HAL_GPIO_ReadPin(DRUK2_GPIO_Port, DRUK2_Pin) == 0) //bumper rechts
+	{
+		ACHTERUIT;
+		HAL_Delay(ACHTERUIT_DELAY);
+		RECHTS;
+		HAL_Delay(DRAAI_DELAY);
+	}
+	else if (HAL_GPIO_ReadPin(DRUK1_GPIO_Port, DRUK1_Pin) == 0) //bumper rechts
+	{
+		ACHTERUIT;
+		HAL_Delay(ACHTERUIT_DELAY);
+		LINKS;
+		HAL_Delay(LANG_DRAAI_DELAY);
+	}
+
 	if (adc_values[0] > IR_SENSOR_DISTANCE && adc_values[1] < IR_SENSOR_DISTANCE)
 	{
 		LINKS;
@@ -226,30 +245,30 @@ void driveNormal(uint32_t adc_values[])
 	else if (adc_values[0] > IR_MID_SENSOR_DISTANCE && adc_values[1] > IR_MID_SENSOR_DISTANCE)
 	{
 		ACHTERUIT;
-		HAL_Delay(500);
+		HAL_Delay(ACHTERUIT_DELAY);
 		if (adc_values[0] > adc_values[1])
 		{
 			LINKS;
-			HAL_Delay(2500);
+			HAL_Delay(DRAAI_DELAY);
 		}
 		else
 		{	RECHTS;
-			HAL_Delay(2500);
+			HAL_Delay(DRAAI_DELAY);
 		}
 	}
 	else if (adc_values[2] > IR_MID_SENSOR_DISTANCE)
 	{
 		ACHTERUIT;
-		HAL_Delay(500);
+		HAL_Delay(ACHTERUIT_DELAY);
 		if (adc_values[0] > adc_values[1])
 		{
 			LINKS;
-			HAL_Delay(2500);
+			HAL_Delay(DRAAI_DELAY);
 		}
 		else
 		{
 			RECHTS;
-			HAL_Delay(2500);
+			HAL_Delay(DRAAI_DELAY);
 		}
 	}
 	else
@@ -298,9 +317,9 @@ int main(void)
   MX_USART1_UART_Init();
   MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
+  HAL_GPIO_WritePin(IR0_GPIO_Port, IR0_Pin, 1);
   HAL_GPIO_WritePin(IR1_GPIO_Port, IR1_Pin, 1);
   HAL_GPIO_WritePin(IR2_GPIO_Port, IR2_Pin, 1);
-  HAL_GPIO_WritePin(IR3_GPIO_Port, IR3_Pin, 1);
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3);
   HAL_Delay(50); //sensors moeten opstarten
@@ -316,16 +335,21 @@ int main(void)
 	  switch (drive_dock)
 	  {
 	  case 0:
-		  if (!HAL_GPIO_ReadPin(DRUK2_GPIO_Port, DRUK2_Pin))
+		  if (!HAL_GPIO_ReadPin(DRUK0_GPIO_Port, DRUK0_Pin))
 		  {
-			  while (!HAL_GPIO_ReadPin(DRUK2_GPIO_Port, DRUK2_Pin));
+			  while (!HAL_GPIO_ReadPin(DRUK0_GPIO_Port, DRUK0_Pin));
 			  drive_dock ^= 1;
 		  }
+		  HAL_GPIO_WritePin(STOF_GPIO_Port, STOF_Pin, 1);
+		  htim2.Instance->CCR1 = NORMAL_SPEED; //Duty Cycle op 50% => led 38kHz
+		  htim2.Instance->CCR3 = NORMAL_SPEED; //Duty Cycle op 50% => led 38kHz
 		  readAdc(adc_values);
+		  printf("l: %d, m: %d, r: %d, ", HAL_GPIO_ReadPin(DRUK4_GPIO_Port, DRUK4_Pin), HAL_GPIO_ReadPin(DRUK1_GPIO_Port, DRUK1_Pin), HAL_GPIO_ReadPin(DRUK2_GPIO_Port, DRUK2_Pin));
 		  driveNormal(adc_values);
 		  break;
 	  case 1:
-		  printf("data: %x, %x\n", data_ready, data_beacon);
+		  HAL_GPIO_WritePin(STOF_GPIO_Port, STOF_Pin, 0);
+		  printf("data: %x, %x, %d\n", data_ready, data_beacon, state_dock);
 		  state_dock = driveDock(state_dock, adc_values, &drive_dock, &detect_dock);
 		  break;
 	  }
@@ -423,7 +447,7 @@ static void MX_ADC_Init(void)
 
   /** Configure for the selected ADC regular channel to be converted.
   */
-  sConfig.Channel = ADC_CHANNEL_1;
+  sConfig.Channel = ADC_CHANNEL_0;
   sConfig.Rank = ADC_RANK_CHANNEL_NUMBER;
   if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
   {
@@ -432,7 +456,7 @@ static void MX_ADC_Init(void)
 
   /** Configure for the selected ADC regular channel to be converted.
   */
-  sConfig.Channel = ADC_CHANNEL_2;
+  sConfig.Channel = ADC_CHANNEL_1;
   if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -440,7 +464,7 @@ static void MX_ADC_Init(void)
 
   /** Configure for the selected ADC regular channel to be converted.
   */
-  sConfig.Channel = ADC_CHANNEL_3;
+  sConfig.Channel = ADC_CHANNEL_2;
   if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -612,7 +636,7 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, BIN2_Pin|BIN1_Pin|STBY_Pin|AIN2_Pin
-                          |AIN1_Pin|PIN_Pin|STOF_Pin, GPIO_PIN_RESET);
+                          |AIN1_Pin|STOF_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : STATUS_Pin */
   GPIO_InitStruct.Pin = STATUS_Pin;
@@ -634,18 +658,24 @@ static void MX_GPIO_Init(void)
                            DRUK1_Pin */
   GPIO_InitStruct.Pin = DRUK5_Pin|DRUK4_Pin|DRUK3_Pin|DRUK2_Pin
                           |DRUK1_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pins : BIN2_Pin BIN1_Pin STBY_Pin AIN2_Pin
-                           AIN1_Pin PIN_Pin STOF_Pin */
+                           AIN1_Pin STOF_Pin */
   GPIO_InitStruct.Pin = BIN2_Pin|BIN1_Pin|STBY_Pin|AIN2_Pin
-                          |AIN1_Pin|PIN_Pin|STOF_Pin;
+                          |AIN1_Pin|STOF_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : DRUK0_Pin */
+  GPIO_InitStruct.Pin = DRUK0_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(DRUK0_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : IR_Pin */
   GPIO_InitStruct.Pin = IR_Pin;
@@ -654,6 +684,12 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(IR_GPIO_Port, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI0_1_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI0_1_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI2_3_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI2_3_IRQn);
+
   HAL_NVIC_SetPriority(EXTI4_15_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI4_15_IRQn);
 
